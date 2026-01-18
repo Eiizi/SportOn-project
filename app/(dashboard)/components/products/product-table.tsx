@@ -62,10 +62,10 @@ const ProductTable =() => {
                                  <td className="px-6 py-4 font-medium">
                                     {data.stock} units
                                 </td>
-                                <td className="px-6 py-7.5 self-center flex item-center gap-3 text-gray-600">
-                                    <button><FiEdit2 size={20}/>
+                                <td className="px-6 py-7.5 self-center flex items-center gap-3 text-gray-600">
+                                    <button className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200"><FiEdit2 size={20}/>
                                     </button>
-                                     <button><FiTrash2 size={20}/>
+                                     <button className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all duration-200"><FiTrash2 size={20}/>
                                     </button>
                                 </td> 
                                 
