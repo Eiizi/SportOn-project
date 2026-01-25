@@ -2,19 +2,136 @@ import Button from "@/app/(landing)/components/ui/button";
 import Modal from "../../ui/modal";
 import Image from "next/image";
 import ImageUploadPreview from "../../ui/image-upload-preview";
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Category, Product } from "@/app/types";
+import { getAllCategories } from "@/app/services/category.service";
+import { createProduct, updateProduct } from "@/app/services/product.services";
+import { toast } from "react-toastify";
+import { getImageUrl } from "@/app/lib/api";
 
 type TProductModalProps ={
     isOpen:boolean;
     onClose: () => void;
+    onSucces?:() => void;
+    product?: Product |null;
+};
+
+type ProductFormData = {
+    name: string;
+    price: number;
+    stock: number;
+    categoryId: string;
+    description: string;
 }
 
-const ProductModal = ({isOpen, onClose}: TProductModalProps)=> {
+const ProductModal = ({isOpen, onClose,onSucces,product}: TProductModalProps)=> {
     const [imageFile, setImageFile] = useState <File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [catgories, setCategories] = useState<Category[]>([]);
+    const [isSubmitting,setIsSubmitting] = useState(false);
+
+    const[formData, setFormData] = useState <ProductFormData>({
+    name: "",
+    price: 0,
+    stock: 0,
+    categoryId: "",
+    description: "",
+    });
+
+    const isEditMode  =!!product;
+
+    const fetchCategories = async () =>{
+        try{
+            const data = await getAllCategories();
+            setCategories(data)
+        }catch(error){
+            console.error("Failed to fetch categories",error)
+        }
+    }
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>{
+        const {id,value} = e.target;
+        setFormData((prev) =>({...prev,[id]: value}))
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true)
+        try{
+            const data = new FormData();
+            data.append("name", formData.name);
+            data.append("price", formData.price.toString());
+            data.append("stock", formData.stock.toString());
+            data.append("categoryId", formData.categoryId);
+            data.append("description", formData.description);
+            if (imageFile){
+                data.append("image", imageFile)
+            }
+
+            if(isEditMode){
+                await updateProduct(product._id, data)
+            } else{
+                await createProduct (data)
+            }
+
+            //reset form data
+
+            setFormData({
+                name: "",
+                price: 0,
+                stock: 0,
+                categoryId: "",
+                description: "",
+            });
+            setImageFile(null);
+            setImagePreview(null);
+
+            toast.success(isEditMode ? "Product updated Successfully!" : "Product created successfully!")
+
+            onSucces?.();
+            onClose?.();
+        } catch(error){
+            console.error(
+                isEditMode ? "Failed to update Product" :"Failed to Create Product",
+                error,
+            );
+            toast.error(isEditMode ? "Failed to update Product" :"Failed to Create Product",
+            );
+        } finally{
+            setIsSubmitting(false)
+        }
+    };
+
+    useEffect(() =>{
+        if (isEditMode && isOpen){
+            setFormData({
+                name:product.name,
+                description: product.description,
+                price: product.price,
+                categoryId:product.category._id,
+                stock: product.stock,
+            });
+            setImagePreview(product.imageUrl ? getImageUrl(product.imageUrl):null)
+        } else if(isOpen){
+            setFormData({
+                name: "",
+                price: 0,
+                stock: 0,
+                categoryId: "",
+                description: "",
+            });
+            setImageFile(null);
+            setImagePreview(null);
+        }
+    }, [isOpen,product])
+
+    useEffect(() => {
+        fetchCategories();
+    },[]);
+
     return(
-        <Modal isOpen={isOpen} onClose={onClose} title="Add new Product">
-            <div className="flex flex-col gap-6">
+        <Modal isOpen={isOpen} onClose={onClose} title={isEditMode ? "Edit Product" : "Add New Product"}>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
                 <div className="flex gap-7">
                     <div className="min-w-50">
                         <ImageUploadPreview label="Product Image" value={imagePreview ?? undefined} onChange={
@@ -26,10 +143,12 @@ const ProductModal = ({isOpen, onClose}: TProductModalProps)=> {
                     </div>
                     <div className="flex flex-col gap-4 w-full">
                         <div className="input-group-admin">
-                            <label htmlFor="Name">Name</label>
+                            <label htmlFor="productName"> Product Name</label>
                             <input type="text" 
                             id="name" 
-                            name="name" 
+                            name="name"
+                            value={formData.name}
+                            onChange={handleChange}
                             placeholder="e . g. Running shooes" 
                             />
                         </div>
@@ -40,24 +159,38 @@ const ProductModal = ({isOpen, onClose}: TProductModalProps)=> {
                             id="price" 
                             name="price" 
                             placeholder="e . g. 50000" 
+                            value={formData.price}
+                            onChange={handleChange}
                             />
                         </div>
                          <div className="flex gap-4">
                             <div className="input-group-admin">
                             <label htmlFor="Stock">Stock</label>
                             <input type="number" 
-                            id="ptock" 
+                            id="stock" 
                             name="stock" 
                             placeholder="e . g. 100" 
+                            value={formData.stock}
+                            onChange={handleChange}
                             />
                         </div>
                     </div> 
                     <div className="input-group-admin">
                         <label htmlFor="category">Product Category</label>
-                        <select name="category" id="category">
+                        <select 
+                        name="categoryId" 
+                        id="categoryId"
+                        value={formData.categoryId}
+                        onChange={handleChange}
+                        >
                             <option value="" disabled>Select Category</option>
-                            <option value="running" >Running</option>
-                            <option value="footbal" >Football</option>
+                           {
+                            catgories.map((category) =>
+
+                                <option value={category._id} key={category._id}>
+                                {category.name}
+                                </option> 
+                            )}
                         </select>
                     </div>
                     <div/>                     
@@ -66,11 +199,27 @@ const ProductModal = ({isOpen, onClose}: TProductModalProps)=> {
                 </div>
                 <div className="input-group-admin">
                      <label htmlFor="description">Description</label>
-                     <textarea name="description" id="description" rows={7} placeholder="Product Details...">
+                     <textarea 
+                     name="description" 
+                     id="description" 
+                     rows={7} 
+                     placeholder="Product Details..."
+                     value={formData.description}
+                    onChange={handleChange}
+                     >   
                      </textarea>         
                 </div>
-               <Button className="ml-auto mt-3 rounded-lg">Create Product</Button>
-            </div>
+               <Button 
+               className="ml-auto mt-3 rounded-lg" 
+               onClick={handleSubmit} 
+               disabled={isSubmitting}
+               type="submit"
+               >
+                {
+                    isEditMode ? "Update Product":"Create Product"
+                }
+               </Button>
+            </form>
         </Modal>
     );
 };
